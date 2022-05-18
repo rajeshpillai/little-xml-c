@@ -69,6 +69,7 @@ int XMLDocument_load(XMLDocument* doc, const char* path) {
   buf[size] = '\0';
 
   doc->root = XMLNode_new(NULL); // root node -> parent is null
+  
   char lex[256];
   int lexi = 0;
   int i = 0;
@@ -77,17 +78,54 @@ int XMLDocument_load(XMLDocument* doc, const char* path) {
 
   while(buf[i] != '\0') {
     if(buf[i] == '<') {
+      lex[lexi] = '\0';
+
+      // If lex is not empty, it means we are in a tag (inner text)
+      if(lexi > 0) {
+        if(!curr_node) {
+          fprintf(stderr, "Text outside of document\n");
+          return FALSE;
+        }
+        curr_node->inner_text = strdup(lex);
+        lexi = 0;
+      }
+  
+      // End of tag
+      if(buf[i + 1] == '/') {
+        i += 2;
+        while(buf[i] != '>') {
+          lex[lexi++] = buf[i++];
+        }
+        lex[lexi] = '\0';
+        if(!curr_node) {
+          fprintf(stderr, "Already at the root\n");
+          return FALSE;
+        }
+        if(strcmp(curr_node->tag, lex)) {
+          fprintf(stderr, "Mismatched tags (%s != %s)\n", curr_node->tag, lex);
+          return FALSE;
+        }
+        curr_node = curr_node->parent;
+        i++;
+        continue;
+      }
+
+
+      // Set current node
       if(!curr_node)
         curr_node = doc->root;
       else 
         curr_node = XMLNode_new(curr_node);
 
+      // Get tag name
       i++;
       while(buf[i] != '>') {
         lex[lexi++] = buf[i++];
       }
       lex[lexi] = '\0';
       curr_node->tag = strdup(lex);
+
+      // Reset lexer
       lexi = 0;
       i++;
       continue;
